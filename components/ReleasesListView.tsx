@@ -151,7 +151,7 @@ export default function ReleasesListView({ releases, repoName, selectedDomain }:
 
           {/* Assets List - Expandable */}
           <div
-            className={`transition-all duration-300 ease-in-out overflow-hidden ${
+            className={`transition-all duration-300 ease-in-out overflow-auto ${
               expandedIndex === index ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
             }`}
           >
