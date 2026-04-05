@@ -9,7 +9,7 @@ export const API_FETCH_INTERVAL = 120 * 60 * 1000; // API节点获取间隔120�
 export const GITHUB_API_BASES = [
   'https://api.github.com',
   // 可以添加更多 GitHub API 代理接口
-  'https://ghfile.geekertao.top/https://api.github.com',
+  'https://gh.dpik.top/https://api.github.com',
 ];
 
 /**
