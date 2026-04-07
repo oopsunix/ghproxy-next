@@ -6,16 +6,18 @@
 import { ChevronDown, AlertCircle, Check, Gauge, Copy, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { DomainNode, Release } from './types';
-import { 
+import {
   PROXY_API_URL,
   GITHUB_API_BASES,
   COPY_FEEDBACK_DURATION,
   MAX_DROPDOWN_HEIGHT,
-  LATENCY_TEST_IMAGE_URL,
+  LATENCY_TEST_IMAGE_URLS,
   LATENCY_TEST_TIMEOUT,
+  SPEED_TEST_FILE_URLS,
   LATENCY_SOURCE_API,
   LATENCY_SOURCE_CLIENT,
   LATENCY_CACHE_DURATION,
+  LATENCY_AUTO_REFRESH_INTERVAL,
   API_FETCH_INTERVAL,
   CLICK_RATE_LIMIT,
   CLICK_RATE_WINDOW,
@@ -33,7 +35,6 @@ export default function MainContent({}: MainContentProps = {}) {
   const [activeTab, setActiveTab] = useState("git-clone");
   const [selectedNode, setSelectedNode] = useState("");
   const [inputValue, setInputValue] = useState("");
-  const [isExpanded, setIsExpanded] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
   const [inputError, setInputError] = useState("");
@@ -47,6 +48,7 @@ export default function MainContent({}: MainContentProps = {}) {
   const [isLoadingDomains, setIsLoadingDomains] = useState(true);
   const [latencySource, setLatencySource] = useState<string>(LATENCY_SOURCE_CLIENT); // 延迟来源：api 或 client
   const [isTestingLatency, setIsTestingLatency] = useState(false); // 是否正在检测延迟
+  const [isTestingSpeed, setIsTestingSpeed] = useState(false); // 是否正在手动测速
   const [clickHistory, setClickHistory] = useState<number[]>([]); // 点击时间记录
   
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
@@ -57,27 +59,35 @@ export default function MainContent({}: MainContentProps = {}) {
   // 节点管理相关
   // ============================================================
   
-  // 节点排序函数：主节点固定在首位，其他按速度降序
-  function sortDomainsBySpeed(domains: DomainNode[]): DomainNode[] {
-    // 分离主节点（gh.llkk.cc）和其他节点
-    const primaryNode = domains.find(d => d.value === 'gh.llkk.cc');
-    const otherNodes = domains.filter(d => d.value !== 'gh.llkk.cc');
-    
-    // 对其他节点按速度降序排列（速度快的在前）
-    const sortedOthers = otherNodes.sort((a, b) => {
-      const speedA = parseFloat(a.speed);
-      const speedB = parseFloat(b.speed);
-      return speedB - speedA; // 降序
+  // 节点排序函数：全部按延迟升序（延迟越低越靠前）
+  function sortDomains(domains: DomainNode[]): DomainNode[] {
+    // 对所有节点按延迟升序排列
+    return [...domains].sort((a, b) => {
+      // 提取延迟数字
+      const getLatencyValue = (latencyStr: string) => {
+        if (!latencyStr || latencyStr === '-') return null;
+        const match = latencyStr.match(/^([0-9.]+)/);
+        return match ? parseFloat(match[1]) : null;
+      };
+
+      const latencyA = getLatencyValue(a.latency);
+      const latencyB = getLatencyValue(b.latency);
+
+      // 处理空值排序：无数据的排在最后
+      if (latencyA === null && latencyB === null) return 0;
+      if (latencyA === null) return 1;
+      if (latencyB === null) return -1;
+
+      return latencyA - latencyB; // 仅按延迟升序
     });
-    
-    // 主节点始终在首位
-    return primaryNode ? [primaryNode, ...sortedOthers] : sortedOthers;
   }
 
   /**
    * 格式化延迟时间:超过1000ms转换为s显示
    */
   function formatLatency(latencyStr: string): string {
+    if (latencyStr === 'timeout' || latencyStr === '-') return '-';
+    
     // 提取数字部分
     const match = latencyStr.match(/^([0-9.]+)/);
     if (!match) return latencyStr;
@@ -96,11 +106,16 @@ export default function MainContent({}: MainContentProps = {}) {
    * 获取延迟颜色样式
    */
   function getLatencyStyle(latencyStr: string): { backgroundColor: string; color: string } {
+    if (latencyStr === 'timeout' || latencyStr === '-') {
+      return { backgroundColor: 'transparent', color: 'inherit' };
+    }
+
     // 提取数字部分
     const match = latencyStr.match(/^([0-9.]+)/);
     if (!match) {
       return { backgroundColor: 'transparent', color: 'inherit' };
     }
+// ... rest of the function (no changes needed for the color logic)
     
     const latency = parseFloat(match[1]);
     
@@ -138,65 +153,94 @@ export default function MainContent({}: MainContentProps = {}) {
     }
   }
 
+  // ============================================================
+  // 缓存管理相关
+  // ============================================================
+
+  const API_CACHE_KEY = 'node_api_cache';
+  const SELECTED_NODE_KEY = 'node_selected_node';
+  const LATENCY_CACHE_KEY = 'node_latency_cache';
+  const SPEED_CACHE_KEY = 'node_speed_cache';
+
+  // 获取延迟缓存
+  function getLatencyCache(): { [host: string]: { value: string, timestamp: number } } {
+    try {
+      const cached = localStorage.getItem(LATENCY_CACHE_KEY);
+      return cached ? JSON.parse(cached) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // 保存延迟缓存
+  function saveLatencyCache(host: string, latency: string) {
+    const cache = getLatencyCache();
+    cache[host] = { value: latency, timestamp: Date.now() };
+    localStorage.setItem(LATENCY_CACHE_KEY, JSON.stringify(cache));
+  }
+
+  // 获取速度缓存
+  function getSpeedCache(): { [host: string]: string } {
+    try {
+      const cached = localStorage.getItem(SPEED_CACHE_KEY);
+      return cached ? JSON.parse(cached) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // 保存速度缓存
+  function saveSpeedCache(host: string, speed: string) {
+    const cache = getSpeedCache();
+    cache[host] = speed;
+    localStorage.setItem(SPEED_CACHE_KEY, JSON.stringify(cache));
+  }
+
   // 从 API 获取节点列表
   async function fetchDomains(): Promise<DomainNode[]> {
     try {
       setIsLoadingDomains(true);
       
+      const latencyCache = getLatencyCache();
+      const speedCache = getSpeedCache();
+      const now = Date.now();
+
+      // 辅助函数：应用缓存数据到节点
+      const applyCache = (node: any): DomainNode => {
+        const cachedLat = latencyCache[node.host];
+        const cachedSpeed = speedCache[node.host];
+        
+        let latency = '-';
+        // 如果延迟缓存未过期（60秒），则使用缓存
+        if (cachedLat && now - cachedLat.timestamp < LATENCY_CACHE_DURATION) {
+          latency = cachedLat.value;
+        }
+
+        return {
+          ...node,
+          latency: latency,
+          speed: cachedSpeed || '-'
+        };
+      };
+      
       // 检查 API 获取缓存（120分钟）
-      const apiCacheKey = 'apiCache';
-      const apiCache = localStorage.getItem(apiCacheKey);
+      const apiCache = localStorage.getItem(API_CACHE_KEY);
       
       if (apiCache) {
         try {
           const { timestamp, domains: cachedDomains } = JSON.parse(apiCache);
-          const now = Date.now();
           
           // 如果 API 缓存未过期，使用缓存数据
           if (now - timestamp < API_FETCH_INTERVAL) {
             console.log('使用 API 缓存数据');
             
-            // 检查延迟检测缓存
-            if (latencySource === LATENCY_SOURCE_CLIENT) {
-              const latencyCache = localStorage.getItem('latencyCache');
-              
-              if (latencyCache) {
-                try {
-                  const { timestamp: latencyTimestamp, nodes: cachedLatencyNodes } = JSON.parse(latencyCache);
-                  
-                  // 延迟缓存未过期（60分钟）
-                  if (now - latencyTimestamp < LATENCY_CACHE_DURATION) {
-                    console.log('使用延迟检测缓存');
-                    const sortedList = sortDomainsBySpeed(cachedLatencyNodes);
-                    setDomains(sortedList);
-                    setIsLoadingDomains(false);
-                    return sortedList;
-                  }
-                } catch (e) {
-                  console.error('解析延迟缓存失败:', e);
-                }
-              }
-              
-              // 延迟缓存过期或不存在，先显示 API 数据，然后异步检测延迟
-              // 清空延迟字段，等待客户端检测结果
-              const domainsWithoutLatency = cachedDomains.map((node: DomainNode) => ({
-                ...node,
-                latency: '-'
-              }));
-              const sortedList = sortDomainsBySpeed(domainsWithoutLatency);
-              setDomains(sortedList);
-              setIsLoadingDomains(false);
-              
-              // 异步检测延迟
-              testAllNodesLatency(domainsWithoutLatency);
-              return sortedList;
-            } else {
-              // 使用 API 提供的延迟
-              const sortedList = sortDomainsBySpeed(cachedDomains);
-              setDomains(sortedList);
-              setIsLoadingDomains(false);
-              return sortedList;
-            }
+            // 应用延迟和速度缓存
+            const initialNodes = cachedDomains.map(applyCache);
+            
+            const sortedList = sortDomains(initialNodes);
+            setDomains(sortedList);
+            setIsLoadingDomains(false);
+            return sortedList;
           }
         } catch (e) {
           console.error('解析 API 缓存失败:', e);
@@ -213,74 +257,57 @@ export default function MainContent({}: MainContentProps = {}) {
       const result = await response.json();
       
       if (result.code === 200 && Array.isArray(result.data)) {
-        // 转换 API 数据为组件所需格式
+        // 转换 API 数据，只取节点信息，延迟和速度从缓存获取或初始化
         const domainList: DomainNode[] = result.data.map((item: any) => {
-          // 从 URL 提取域名
           const url = new URL(item.url);
           const host = url.host;
-          
-          // 标签转换逻辑
           let label = item.tag;
           
-          // 特殊处理 gh.llkk.cc，替换标签为"默认节点"
           if (host === 'gh.llkk.cc') {
             label = '默认节点';
-          } 
-          // 根据 tag 值转换为中文显示
-          else if (item.tag === 'donate') {
+          } else if (item.tag === 'donate') {
             label = '公益贡献';
           } else if (item.tag === 'search') {
             label = '搜索引擎';
           }
           
-          return {
+          return applyCache({
             value: host,
             label: label,
-            host: host,
-            // 如果使用客户端检测，延迟字段为空，等待检测结果
-            latency: latencySource === LATENCY_SOURCE_CLIENT ? '-' : `${item.latency}ms`,
-            speed: `${item.speed.toFixed(1)}Mbps`,
-          };
+            host: host
+          });
         });
         
-        // 缓存 API 数据
-        const apiCacheData = {
+        // 缓存 API 节点基础数据 (不带延迟和速度，因为它们有独立缓存)
+        const baseDomains = domainList.map(node => ({
+          value: node.value,
+          label: node.label,
+          host: node.host
+        }));
+
+        localStorage.setItem(API_CACHE_KEY, JSON.stringify({
           timestamp: Date.now(),
-          domains: domainList,
-        };
-        localStorage.setItem(apiCacheKey, JSON.stringify(apiCacheData));
+          domains: baseDomains,
+        }));
         
-        // 先显示 API 数据（带标签和速度）
-        const sortedList = sortDomainsBySpeed(domainList);
+        const sortedList = sortDomains(domainList);
         setDomains(sortedList);
         setIsLoadingDomains(false);
-        
-        // 如果选择客户端检测延迟，异步执行延迟检测
-        if (latencySource === LATENCY_SOURCE_CLIENT) {
-          testAllNodesLatency(domainList);
-        }
-        
         return sortedList;
       } else {
         throw new Error('API 返回数据格式错误');
       }
     } catch (error) {
       console.error('获取节点列表失败:', error);
-      // 失败时使用默认节点列表（包含 gh.llkk.cc）
-      const fallbackDomains: DomainNode[] = [
-        {
-          value: "gh.llkk.cc",
-          label: "默认节点",
-          host: "gh.llkk.cc",
-          latency: "15ms",
-          speed: "30Mbps",
-        },
-      ];
-      
-      // 应用相同的排序规则
-      const sortedFallback = sortDomainsBySpeed(fallbackDomains);
-      setDomains(sortedFallback);
-      return sortedFallback;
+      const fallbackDomains: DomainNode[] = [{
+        value: "gh.llkk.cc",
+        label: "默认节点",
+        host: "gh.llkk.cc",
+        latency: "-",
+        speed: "-",
+      }];
+      setDomains(fallbackDomains);
+      return fallbackDomains;
     } finally {
       setIsLoadingDomains(false);
     }
@@ -330,119 +357,206 @@ export default function MainContent({}: MainContentProps = {}) {
 
   /**
    * 客户端检测单个节点延迟
-   * 通过加载图片资源计算往返时间
    */
-  async function testNodeLatencyByImage(node: DomainNode): Promise<number> {
+  async function testNodeLatencyByImage(node: DomainNode, imageUrl: string): Promise<number> {
     return new Promise((resolve) => {
       const img = new Image();
       const startTime = performance.now();
       
-      // 设置超时
       const timeout = setTimeout(() => {
-        img.src = ''; // 取消加载
-        resolve(9999); // 超时返回最大延迟
+        img.src = ''; 
+        resolve(9999);
       }, LATENCY_TEST_TIMEOUT);
       
       img.onload = () => {
         clearTimeout(timeout);
-        const endTime = performance.now();
-        const latency = Math.round(endTime - startTime);
-        resolve(latency);
+        resolve(Math.round(performance.now() - startTime));
       };
       
       img.onerror = () => {
         clearTimeout(timeout);
-        resolve(9999); // 加载失败返回最大延迟
+        resolve(9999);
       };
       
-      // 构建代理图片 URL，添加时间戳避免缓存
       const timestamp = Date.now();
-      // 使用代理节点访问图片
-      img.src = `https://${node.value}/${LATENCY_TEST_IMAGE_URL}?t=${timestamp}`;
+      // 使用传入的随机图片 URL
+      img.src = `https://${node.value}/${imageUrl}?t=${timestamp}`;
     });
+  }
+
+  /**
+   * 客户端节点带宽测速
+   */
+  async function testNodeSpeed(node: DomainNode, fileUrl: string): Promise<string> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), LATENCY_TEST_TIMEOUT);
+
+    try {
+      const startTime = performance.now();
+      const timestamp = Date.now();
+      
+      // 使用传入的随机文件 URL，并补齐协议头
+      const finalUrl = `https://${node.value}/${fileUrl}?t=${timestamp}`;
+      
+      const response = await fetch(finalUrl, {
+        cache: 'no-cache',
+        signal: controller.signal
+      });
+      
+      if (!response.ok) {
+        clearTimeout(timeoutId);
+        return '-';
+      }
+      
+      const blob = await response.blob();
+      clearTimeout(timeoutId);
+
+      const endTime = performance.now();
+      const durationInSeconds = (endTime - startTime) / 1000;
+      
+      if (durationInSeconds <= 0) return '-';
+      
+      // 计算 Mbps: (字节数 * 8位) / 时间(秒) / 1024 / 1024
+      const mbps = ((blob.size * 8) / durationInSeconds) / (1024 * 1024);
+      return `${mbps.toFixed(1)}Mbps`;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn(`测速超时已中断 ${node.host}`);
+        return 'timeout';
+      }
+      console.error(`测速失败 ${node.host}:`, error);
+      return '-';
+    }
   }
 
   /**
    * 检测节点延迟
    */
-  async function testNodeLatency(node: DomainNode): Promise<number> {
+  async function testNodeLatency(node: DomainNode, imageUrl: string): Promise<number> {
     try {
-      // 调用GitHub图片资源检测节点延迟
-      // const finalLatency = await testNodeLatencyByImage(node);
-
-      // 直接检测代理节点站点延迟
-      const finalLatency = await testNodeWebsiteLatency(node);
-      return finalLatency;
+      return await testNodeLatencyByImage(node, imageUrl);
     } catch (error) {
-      console.error(`检测节点 ${node.host} 失败:`, error);
       return 9999;
     }
   }
 
   /**
-   * 批量检测所有节点延迟（实时更新版本）
-   * 每个节点检测完成后立即更新 UI
+   * 批量检测
+   * mode: 'latency' 只测延迟 | 'speed' 只测速度
    */
-  async function testAllNodesLatency(nodeList: DomainNode[]): Promise<DomainNode[]> {
-    setIsTestingLatency(true);
+  async function testAllNodesLatency(nodeList: DomainNode[], mode: 'latency' | 'speed' = 'latency'): Promise<DomainNode[]> {
+    if (nodeList.length === 0) return [];
+    
+    if (mode === 'latency') {
+      setIsTestingLatency(true);
+    } else {
+      setIsTestingSpeed(true);
+    }
     
     try {
-      // 复制节点列表用于实时更新
+      // 在本批次开始前，随机选择一个资源 URL，保证本批次内一致
+      const selectedLatencyUrl = mode === 'latency'
+        ? LATENCY_TEST_IMAGE_URLS[Math.floor(Math.random() * LATENCY_TEST_IMAGE_URLS.length)]
+        : '';
+      
+      const selectedSpeedUrl = mode === 'speed'
+        ? SPEED_TEST_FILE_URLS[Math.floor(Math.random() * SPEED_TEST_FILE_URLS.length)]
+        : '';
+
       const updatedNodes = [...nodeList];
       
-      // 并发检测所有节点，但每个检测完成后立即更新
-      const latencyPromises = nodeList.map(async (node, index) => {
-        const latency = await testNodeLatency(node);
-        
-        // 更新当前节点的延迟
-        // 如果延迟值为9999（超时或失败），显示为 '-'
-        updatedNodes[index] = {
-          ...node,
-          latency: latency >= 9999 ? '-' : `${latency}ms`,
-        };
-        
-        // 立即更新 UI（保持排序）
-        const sortedList = sortDomainsBySpeed([...updatedNodes]);
-        setDomains(sortedList);
-        
+      const promises = nodeList.map(async (node, index) => {
+        if (mode === 'latency') {
+          // 只测延迟
+          const latencyValue = await testNodeLatency(node, selectedLatencyUrl);
+          // 超时标记为 timeout 而不是 -，避免 useEffect 误以为未测试
+          const latencyStr = latencyValue >= 9999 ? 'timeout' : `${latencyValue}ms`;
+          updatedNodes[index] = {
+            ...updatedNodes[index],
+            latency: latencyStr,
+          };
+          // 保存缓存
+          saveLatencyCache(node.host, latencyStr);
+          // 立即更新 UI 展示排序
+          setDomains(sortDomains([...updatedNodes]));
+        } else {
+          // 只测速度
+          const speedStr = await testNodeSpeed(node, selectedSpeedUrl);
+          updatedNodes[index] = {
+            ...updatedNodes[index],
+            speed: speedStr,
+          };
+          // 保存缓存
+          saveSpeedCache(node.host, speedStr);
+          // 测速完成后也更新 UI (此时不影响排序，因为 sortDomains 只看延迟)
+          setDomains([...updatedNodes]);
+        }
         return updatedNodes[index];
       });
       
-      // 等待所有检测完成
-      await Promise.all(latencyPromises);
-      
-      // 保存检测结果到 localStorage 缓存
-      const cacheData = {
-        timestamp: Date.now(),
-        nodes: updatedNodes,
-      };
-      localStorage.setItem('latencyCache', JSON.stringify(cacheData));
-      
+      await Promise.all(promises);
       return updatedNodes;
     } finally {
-      setIsTestingLatency(false);
+      if (mode === 'latency') {
+        setIsTestingLatency(false);
+      } else {
+        setIsTestingSpeed(false);
+      }
     }
   }
 
   /**
-   * 手动刷新节点延迟
+   * 节点测速按钮触发 (手动模式)
    */
   async function handleRefreshLatency() {
-    // 如果正在检测，则不重复触发
-    if (isTestingLatency) {
-      return;
+    if (isTestingSpeed) return;
+
+    // 只将速度位归零，延迟保持现状
+    const resetSpeedNodes = domains.map(node => ({
+      ...node,
+      speed: '-'
+    }));
+    setDomains(resetSpeedNodes);
+
+    // 触发只测速度模式
+    await testAllNodesLatency(resetSpeedNodes, 'speed');
+  }
+
+  // 使用 Ref 追踪状态，避免 useEffect 循环
+  const domainsRef = useRef<DomainNode[]>([]);
+  const isTestingRef = useRef(false);
+  const initialTestAttempted = useRef(false);
+
+  useEffect(() => {
+    domainsRef.current = domains;
+    isTestingRef.current = isTestingLatency;
+  }, [domains, isTestingLatency]);
+
+  // 自动刷新延迟
+  useEffect(() => {
+    if (domains.length === 0 || isLoadingDomains) return;
+    
+    // 1. 初始检查：只在未尝试过且有节点为 '-' 时触发一次
+    if (!initialTestAttempted.current) {
+      const hasUntested = domains.some(d => d.latency === '-');
+      if (hasUntested && !isTestingLatency) {
+        initialTestAttempted.current = true;
+        testAllNodesLatency(domains, 'latency');
+      }
     }
 
-    // 清空当前节点的延迟数据，显示为检测中
-    const nodesWithoutLatency = domains.map(node => ({
-      ...node,
-      latency: '-'
-    }));
-    setDomains(nodesWithoutLatency);
+    // 2. 设置稳定的 60s 定时器
+    const interval = setInterval(() => {
+      // 通过 Ref 获取最新状态，避免闭包问题，且不依赖 isTestingLatency 触发 effect 重置
+      if (!isTestingRef.current && domainsRef.current.length > 0) {
+        testAllNodesLatency(domainsRef.current, 'latency');
+      }
+    }, LATENCY_AUTO_REFRESH_INTERVAL);
 
-    // 重新检测所有节点延迟
-    await testAllNodesLatency(domains);
-  }
+    return () => clearInterval(interval);
+    // 仅在域名列表首次加载完成时启动定时器逻辑，后续不再因为测试状态改变而重置定时器
+  }, [domains.length > 0, isLoadingDomains]);
 
   // ============================================================
   // localStorage 数据持久化
@@ -450,7 +564,7 @@ export default function MainContent({}: MainContentProps = {}) {
   
   // 从 localStorage 加载设置
   useEffect(() => {
-    const savedNode = localStorage.getItem('selectedNode');
+    const savedNode = localStorage.getItem(SELECTED_NODE_KEY);
     const savedFetchReleases = localStorage.getItem('fetchReleases');
     const savedLatencySource = localStorage.getItem('latencySource');
     
@@ -484,7 +598,7 @@ export default function MainContent({}: MainContentProps = {}) {
   // 保存节点选择到 localStorage
   useEffect(() => {
     if (selectedNode) {
-      localStorage.setItem('selectedNode', selectedNode);
+      localStorage.setItem(SELECTED_NODE_KEY, selectedNode);
     }
   }, [selectedNode]);
 
@@ -693,10 +807,6 @@ export default function MainContent({}: MainContentProps = {}) {
     } else {
       setInputError("");
     }
-    
-    if (value && !isExpanded) {
-      setIsExpanded(true);
-    }
   }
 
   /**
@@ -876,46 +986,22 @@ export default function MainContent({}: MainContentProps = {}) {
   // ============================================================
   
   return (
-    <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 transition-all duration-500">
+    <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-[1000px] mx-auto">
-        {/* Container for initial centered content */}
-        <div
-          className={`transition-all duration-700 ease-in-out ${
-            isExpanded
-              ? "pt-40"
-              : "pt-40 flex flex-col items-center justify-start"
-          }`}
-        >
+        {/* Container for content */}
+        <div className="pt-40">
           {/* Title Section */}
-          <div
-            className={`text-center transition-all duration-700 ease-in-out w-full ${
-              isExpanded
-                ? "mb-12 transform translate-y-0"
-                : "mb-12 transform translate-y-0"
-            }`}
-          >
-            <h1
-              className={`font-bold mb-4 transition-all duration-700 ease-in-out ${
-                isExpanded ? "text-6xl" : "text-6xl"
-              }`}
-            >
+          <div className="text-center w-full mb-12">
+            <h1 className="font-bold mb-4 text-6xl">
               Github <span className="text-blue-600">Proxy</span>
             </h1>
-            <p
-              className={`text-gray-600 dark:text-gray-400 transition-all duration-700 ease-in-out ${
-                isExpanded ? "text-base" : "text-base"
-              }`}
-            >
+            <p className="text-gray-600 dark:text-gray-400 text-base">
               支持 API、Git Clone、Releases、Archive、Gist、Raw 等资源加速下载，提升 GitHub 文件下载体验。
             </p>
           </div>
 
           {/* Input Section */}
-          <div
-            className={`transition-all duration-700 ease-in-out w-full relative z-[10001] ${
-              isExpanded ? "mb-8" : "mb-0 max-w-2xl"
-            }`}
-          >
+          <div className="w-full relative z-[10001] mb-8">
             {/* Input Field and Button */}
             <div className="flex flex-col sm:flex-row gap-3 sm:items-start">
               <div className="flex-1 relative">
@@ -948,22 +1034,10 @@ export default function MainContent({}: MainContentProps = {}) {
           </div>
         </div>
 
-        {/* Expandable Content - Animated from bottom */}
-        <div
-          className={`transition-all duration-700 ease-in-out ${
-            isExpanded
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-8 pointer-events-none"
-          }`}
-        >
+        {/* Expandable Content */}
+        <div>
           {/* Domain Selector - Custom Dropdown */}
-          <div
-            className={`transition-all duration-700 ease-in-out delay-75 relative z-[9999] ${
-              isExpanded
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-8"
-            }`}
-          >
+          <div className="relative z-[9999]">
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
               {/* 左侧描述文本 - 移动端隐藏 */}
               <span className="hidden md:block text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">
@@ -988,10 +1062,6 @@ export default function MainContent({}: MainContentProps = {}) {
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      {/* 标签 - 20% */}
-                      {/* <span className={`font-medium shrink-0 ${getLabelStyle(getSelectedNode().label)}`} style={{ width: '15%', minWidth: '80px' }}>
-                        [{getSelectedNode().label}]
-                      </span> */}
                       {/* Host - 55% */}
                       <span className="text-gray-700 dark:text-gray-300 truncate" style={{ width: '55%' }}>
                         {getSelectedNode().host}
@@ -1009,7 +1079,6 @@ export default function MainContent({}: MainContentProps = {}) {
                       </span>
                       {/* 速度 - 10% */}
                       <span className="text-sm text-green-600 dark:text-green-400 flex items-center justify-center gap-1 shrink-0" style={{ width: '10%', minWidth: '80px' }}>
-                        {/* <Gauge className="w-4 h-4" /> */}
                         {getSelectedNode().speed}
                       </span>
                       {/* 下拉箭头 - 5% */}
@@ -1077,15 +1146,8 @@ export default function MainContent({}: MainContentProps = {}) {
                         </span>
                         {/* 速度 - 10% */}
                         <span className="text-sm text-green-600 dark:text-green-400 flex items-center justify-center gap-1 shrink-0" style={{ width: '10%', minWidth: '80px' }}>
-                          {/* <Gauge className="w-4 h-4" /> */}
                           {domain.speed}
                         </span>
-                        {/* 选中状态 - 5% */}
-                        {/* <div className="flex items-center justify-center shrink-0" style={{ width: '1%', minWidth: '10px' }}>
-                          {selectedNode === domain.value && (
-                            <Check className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                          )}
-                        </div> */}
                       </div>
                     </button>
                   ))}
@@ -1093,17 +1155,17 @@ export default function MainContent({}: MainContentProps = {}) {
                 )}
               </div>
 
-              {/* 手动刷新按钮 */}
+              {/* 节点测速按钮 */}
               <button
                 type="button"
                 onClick={handleRefreshLatency}
-                disabled={isTestingLatency || isLoadingDomains}
+                disabled={isTestingSpeed || isLoadingDomains}
                 className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all whitespace-nowrap bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="重新检测节点延迟"
+                title="开始节点测速"
               >
-                <RefreshCw className={`w-4 h-4 ${isTestingLatency ? 'animate-spin' : ''}`} />
+                <Gauge className={`w-4 h-4 ${isTestingSpeed ? 'animate-pulse' : ''}`} />
                 <span className="text-sm font-medium">
-                  {isTestingLatency ? '检测中...' : '重新检测延迟'}
+                  {isTestingSpeed ? '测速中...' : '节点测速'}
                 </span>
               </button>
 
@@ -1140,13 +1202,7 @@ export default function MainContent({}: MainContentProps = {}) {
           </div>
 
           {/* Warning Alert */}
-          <div
-            className={`bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-4 mb-6 flex items-start gap-3 transition-all duration-700 ease-in-out delay-150 ${
-              isExpanded
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-8"
-            }`}
-          >
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-4 mb-6 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-yellow-800 dark:text-yellow-200">
               公益服务，请勿滥用。加速源来自热心网友贡献，在此感谢每一位分享者的慷慨奉献！
@@ -1162,13 +1218,7 @@ export default function MainContent({}: MainContentProps = {}) {
 
           {/* Releases List View */}
           {!isLoading && fetchReleases && releases.length > 0 && (
-            <div
-              className={`transition-all duration-700 ease-in-out delay-200 ${
-                isExpanded
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-8"
-              }`}
-            >
+            <div className="mb-8">
               <ReleasesListView 
                 releases={releases} 
                 repoName={repoName} 
@@ -1179,13 +1229,7 @@ export default function MainContent({}: MainContentProps = {}) {
 
           {/* Tabs with Content - 统一卡片 */}
           {!isLoading && !fetchReleases && inputValue && !inputError && (
-            <div
-              className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-all duration-700 ease-in-out delay-200 ${
-                isExpanded
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-8"
-              }`}
-            >
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-8">
               {/* Tab 按钮区域 */}
               <div className="relative grid grid-cols-3 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                 {/* Animated Indicator */}
@@ -1299,17 +1343,8 @@ export default function MainContent({}: MainContentProps = {}) {
           )}
 
           {/* Waline 评论区域 */}
-          {!isLoading && isExpanded && (
-            <div
-              className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 mt-8 transition-all duration-700 ease-in-out delay-300 ${
-                isExpanded
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-8"
-              }`}
-            >
-              {/* <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                评论区
-              </h2> */}
+          {!isLoading && (
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
               <WalineComment 
                 serverURL={WALINE_SERVER_URL}
                 path="/github"

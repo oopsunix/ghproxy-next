@@ -47,12 +47,26 @@ export const BEIJING_TIMEZONE_OFFSET = 8; // UTC+8
 export const CLICK_RATE_LIMIT = 3; // 1秒内最多点击次数
 export const CLICK_RATE_WINDOW = 5 * 1000; // 1秒时间窗口（毫秒）
 
-// 延迟检测配置
-export const LATENCY_TEST_IMAGE_URL = 'https://raw.githubusercontent.com/microsoft/vscode/refs/heads/main/extensions/markdown-math/icon.png';
-export const LATENCY_TEST_TIMEOUT = 10000; // 10秒超时
+// 延迟检测资源配置 (图片列表)
+export const LATENCY_TEST_IMAGE_URLS = [
+  'https://raw.githubusercontent.com/microsoft/terminal/refs/heads/main/res/terminal/images/SmallTile.scale-125.png',
+  'https://raw.githubusercontent.com/microsoft/vscode/refs/heads/main/resources/linux/code.png',
+  'https://raw.githubusercontent.com/facebook/react/refs/heads/main/fixtures/dom/public/favicon.ico',
+  'https://raw.githubusercontent.com/python/cpython/refs/heads/main/PC/icons/python.ico'
+];
+
+// 速度测试资源配置 (文件列表)
+export const SPEED_TEST_FILE_URLS = [
+  'https://github.com/microsoft/terminal/releases/download/v1.22.10731.0/Microsoft.WindowsTerminal_1.22.10731.0_x64.zip',
+  'https://github.com/NVIDIA/cccl/releases/download/v3.2.0/cccl-src-v3.2.0.zip',
+  'https://github.com/pypa/pip/archive/refs/tags/24.3.1.zip'
+];
+
+export const LATENCY_TEST_TIMEOUT = 30000; // 调大超时时间到 30 秒，因为大文件下载可能需要更久
 export const LATENCY_SOURCE_API = 'api'; // 使用API提供的延迟
 export const LATENCY_SOURCE_CLIENT = 'client'; // 客户端检测延迟
-export const LATENCY_CACHE_DURATION = 60 * 60 * 1000; // 客户端检测结果缓存60分钟
+export const LATENCY_CACHE_DURATION = 5 * 60 * 1000; // 客户端检测结果缓存5分钟
+export const LATENCY_AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 自动刷新间隔5分钟
 
 // Waline 评论配置
 export const WALINE_SERVER_URL = 'https://waline.akams.cn'; // Waline服务器地址
