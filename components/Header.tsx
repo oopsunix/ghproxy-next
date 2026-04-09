@@ -3,9 +3,9 @@
 // ============================================================
 "use client";
 
-import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { THEME_STORAGE_KEY, THEME_DARK, THEME_LIGHT } from './constants';
+import { Icon } from '@iconify/react';
 
 // ============================================================
 // Component
@@ -75,13 +75,19 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-black dark:bg-white rounded-lg flex items-center justify-center">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+              isDark ? "border-gray-800" : "bg-[#ffffff]"
+            }`}>
               <svg
-                viewBox="0 0 16 16"
-                className="w-5 h-5 fill-white dark:fill-black"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                className={`w-8 h-8 transition-colors ${
+                  isDark ? "fill-white" : "fill-black"
+                }`}
                 aria-hidden="true"
               >
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                <path d="M7.75 11c-.69 0-1.25.56-1.25 1.25v1.5a1.25 1.25 0 1 0 2.5 0v-1.5C9 11.56 8.44 11 7.75 11zm1.27 4.5a.469.469 0 0 1 .48-.5h5a.47.47 0 0 1 .48.5c-.116 1.316-.759 2.5-2.98 2.5s-2.864-1.184-2.98-2.5zm7.23-4.5c-.69 0-1.25.56-1.25 1.25v1.5a1.25 1.25 0 1 0 2.5 0v-1.5c0-.69-.56-1.25-1.25-1.25z" />
+                <path fillRule="evenodd" d="M21.255 3.82a1.725 1.725 0 0 0-2.141-1.195c-.557.16-1.406.44-2.264.866c-.78.386-1.647.93-2.293 1.677A18.442 18.442 0 0 0 12 5c-.93 0-1.784.059-2.569.17c-.645-.74-1.505-1.28-2.28-1.664a13.876 13.876 0 0 0-2.265-.866a1.725 1.725 0 0 0-2.141 1.196a23.645 23.645 0 0 0-.69 3.292c-.125.97-.191 2.07-.066 3.112C1.254 11.882 1 13.734 1 15.527C1 19.915 3.13 23 12 23c8.87 0 11-3.053 11-7.473c0-1.794-.255-3.647-.99-5.29c.127-1.046.06-2.15-.066-3.125a23.652 23.652 0 0 0-.689-3.292zM20.5 14c.5 3.5-1.5 6.5-8.5 6.5s-9-3-8.5-6.5c.583-4 3-6 8.5-6s7.928 2 8.5 6z" />
               </svg>
             </div>
             <a href="/" className="text-xl font-semibold hover:opacity-80 transition-opacity">
@@ -106,23 +112,32 @@ export default function Header() {
               </a>
             </nav>
 
+            {/* Feedback Link */}
+            <a
+              href="http://github.akams.cn/contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-6 h-6 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+              title="反馈及建议"
+            >
+              <Icon 
+                icon="solar:chat-square-like-bold" 
+                className={`w-6 h-6 ${isDark ? "text-gray-100" : "text-gray-600"}`} 
+              />
+            </a>
+
             {/* Theme Toggle */}
-            <button
+            <div
               onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="切换主题"
+              className="w-6 h-6 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+              title={isDark ? "切换到日间模式" : "切换到暗黑模式"}
             >
               {isDark ? (
-                <Sun className="w-5 h-5" />
+                <Icon icon="solar:sun-bold" className="w-6 h-6 text-gray-100" />
               ) : (
-                <Moon className="w-5 h-5" />
+                <Icon icon="solar:moon-stars-bold" className="w-6 h-6 text-gray-600" />
               )}
-            </button>
-
-            {/* 捐赠 Button */}
-            {/* <button className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors font-medium">
-              捐赠
-            </button> */}
+            </div>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@iconify/react": "^6.0.2",
     "@waline/client": "^3.8.0",
     "lucide-react": "^0.555.0",
     "next": "^16.0.6",

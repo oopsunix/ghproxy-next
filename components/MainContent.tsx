@@ -1011,7 +1011,7 @@ export default function MainContent({}: MainContentProps = {}) {
                   value={inputValue}
                   onChange={handleInputChange}
                   placeholder="输入 Github 文件链接"
-                  className={`w-full px-4 py-3 dark:bg-gray-300 border rounded-lg focus:outline-none focus:ring-2 transition-all placeholder:text-gray-500 ${
+                  className={`w-full px-4 py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border rounded-lg focus:outline-none focus:ring-2 transition-all placeholder:text-gray-500 h-[48px] ${
                     inputError
                       ? "border-red-500 focus:ring-red-500"
                       : "border-gray-300 dark:border-gray-700 focus:ring-blue-500"
@@ -1053,15 +1053,15 @@ export default function MainContent({}: MainContentProps = {}) {
                   type="button"
                   onClick={() => setShowDropdown(!showDropdown)}
                   disabled={isLoadingDomains}
-                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed h-[48px] flex items-center"
                 >
                   {isLoadingDomains ? (
-                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 w-full">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span>加载节点列表中...</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full">
                       {/* Host - 55% */}
                       <span className="text-gray-700 dark:text-gray-300 truncate" style={{ width: '55%' }}>
                         {getSelectedNode().host}
@@ -1160,7 +1160,7 @@ export default function MainContent({}: MainContentProps = {}) {
                 type="button"
                 onClick={handleRefreshLatency}
                 disabled={isTestingSpeed || isLoadingDomains}
-                className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all whitespace-nowrap bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all whitespace-nowrap bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed h-[48px]"
                 title="开始节点测速"
               >
                 <Gauge className={`w-4 h-4 ${isTestingSpeed ? 'animate-pulse' : ''}`} />
@@ -1177,7 +1177,7 @@ export default function MainContent({}: MainContentProps = {}) {
                   setFetchReleases(newValue);
                   localStorage.setItem('fetchReleases', String(newValue));
                 }}
-                className={`w-full md:w-auto flex items-center justify-center md:justify-start gap-2 px-4 py-3 rounded-lg border transition-all whitespace-nowrap ${
+                className={`w-full md:w-auto flex items-center justify-center md:justify-start gap-2 px-4 py-3 rounded-lg border transition-all whitespace-nowrap h-[48px] ${
                   fetchReleases
                     ? "bg-gray-100 dark:bg-gray-700 text-gray-900 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600"
                     : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
