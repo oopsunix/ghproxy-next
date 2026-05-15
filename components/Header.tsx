@@ -105,7 +105,7 @@ export default function Header() {
                 GitHub Host
               </a>
               <a
-                href="https://akams.cn/sponsor.html"
+                href="https://akams.cn/donate"
                 className="text-gray-600 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white transition-colors font-medium"
               >
                 捐赠
