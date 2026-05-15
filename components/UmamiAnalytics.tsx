@@ -1,23 +1,25 @@
 'use client';
 
 import Script from 'next/script';
-import { UMAMI_WEBSITE_ID, UMAMI_URL } from './constants';
+import { servicesConfig } from "@/config/services";
 
 /**
  * Umami 访问统计组件
- * 配置位于 constants.ts 中的 UMAMI_WEBSITE_ID 和 UMAMI_URL
+ * 配置位于 config/services.ts 中的 umami
  */
 export default function UmamiAnalytics() {
+  const { websiteId, url } = servicesConfig.umami;
+  
   // 如果未配置 Website ID，则不渲染统计脚本
-  if (!UMAMI_WEBSITE_ID) {
+  if (!websiteId) {
     return null;
   }
 
   return (
     <Script
       async
-      src={`${UMAMI_URL}/script.js`}
-      data-website-id={UMAMI_WEBSITE_ID}
+      src={`${url}script.js`}
+      data-website-id={websiteId}
       strategy="afterInteractive"
     />
   );

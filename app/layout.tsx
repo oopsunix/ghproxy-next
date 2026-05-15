@@ -2,32 +2,43 @@ import type { Metadata } from "next";
 import { preconnect } from "react-dom";
 import "./globals.css";
 import UmamiAnalytics from "@/components/UmamiAnalytics";
+import { siteConfig } from "@/config/site";
+import { servicesConfig } from "@/config/services";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://github.akams.cn"),
+  metadataBase: new URL(siteConfig.url),
   title: {
-    default: "GitHub 文件下载加速代理 - GitHub Proxy",
-    template: "%s | GitHub Proxy"
+    default: `${siteConfig.name} - GitHub 文件下载加速代理`,
+    template: `%s | ${siteConfig.name}`
   },
-  description: "GitHub 文件下载加速代理服务，支持API、Git Clone、Releases、Archive、Gist、Raw等资源加速下载，解决 GitHub 文件访问慢的问题。",
-  keywords: ["github代理", "github加速", "github镜像", "github加速站", "github代理加速", "github下载加速", "releases下载加速", "raw加速", "ghproxy", "github proxy", "github", "proxy", "git"],
-  authors: [{ name: "OopsUnix" }],
-  creator: "OopsUnix",
+  description: siteConfig.description,
+  keywords: siteConfig.keywords,
+  authors: [{ name: siteConfig.author.name }],
+  creator: siteConfig.author.name,
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     locale: "zh_CN",
-    url: "https://github.akams.cn",
-    title: "GitHub 文件下载加速代理 - GitHub Proxy",
-    description: "GitHub 文件下载加速代理服务，解决 GitHub 文件访问慢的问题，提升开发者体验。",
-    siteName: "GitHub Proxy",
+    url: siteConfig.url,
+    title: `${siteConfig.name} - GitHub 文件下载加速代理`,
+    description: siteConfig.description,
+    siteName: siteConfig.name,
+    images: [
+      {
+        url: siteConfig.ogImage,
+        width: 1200,
+        height: 630,
+        alt: siteConfig.name,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "GitHub 文件下载加速代理 - GitHub Proxy",
-    description: "GitHub 文件下载加速代理服务，支持多种资源加速下载。",
+    title: `${siteConfig.name} - GitHub 文件下载加速代理`,
+    description: siteConfig.description,
+    images: [siteConfig.ogImage],
   },
   icons: {
     icon: "/icon.png",
@@ -40,9 +51,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 使用 React 19 指令式 API 进行预连接
-  preconnect("https://cdn.akams.cn", { crossOrigin: 'anonymous' });
-  preconnect("https://gh.llkk.cc", { crossOrigin: 'anonymous' });
+  // 使用 React 19 指令式 API 自动进行预连接
+  servicesConfig.preconnect.forEach(url => {
+    preconnect(url, { crossOrigin: 'anonymous' });
+  });
 
   return (
     <html lang="zh-CN" suppressHydrationWarning>
@@ -54,12 +66,12 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebSite",
-              "name": "GitHub Proxy",
-              "url": "https://github.akams.cn",
-              "description": "GitHub 文件下载加速代理服务，支持 API、Git Clone、Releases、Raw 等资源加速。",
+              "name": siteConfig.name,
+              "url": siteConfig.url,
+              "description": siteConfig.description,
               "potentialAction": {
                 "@type": "SearchAction",
-                "target": "https://github.akams.cn/?url={search_term_string}",
+                "target": `${siteConfig.url}/?url={search_term_string}`,
                 "query-input": "required name=search_term_string"
               }
             })
@@ -71,7 +83,7 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "SoftwareApplication",
-              "name": "GitHub Proxy",
+              "name": siteConfig.name,
               "operatingSystem": "All",
               "applicationCategory": "UtilitiesApplication",
               "description": "提供 GitHub 资源的镜像加速下载服务。",

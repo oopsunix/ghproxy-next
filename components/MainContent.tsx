@@ -7,20 +7,17 @@ import { ChevronDown, AlertCircle, Check, Gauge, Copy, ExternalLink, Loader2, Re
 import { useState, useRef, useEffect } from "react";
 import type { DomainNode, Release } from './types';
 import { PROXY_NODES } from './nodes';
+import { servicesConfig } from "@/config/services";
 import {
-  GITHUB_API_BASES,
   COPY_FEEDBACK_DURATION,
   MAX_DROPDOWN_HEIGHT,
-  LATENCY_TEST_IMAGE_URLS,
   LATENCY_TEST_TIMEOUT,
-  SPEED_TEST_FILE_URLS,
   LATENCY_SOURCE_API,
   LATENCY_SOURCE_CLIENT,
   LATENCY_CACHE_DURATION,
   LATENCY_AUTO_REFRESH_INTERVAL,
   CLICK_RATE_LIMIT,
   CLICK_RATE_WINDOW,
-  WALINE_SERVER_URL
 } from './constants';
 import ReleasesListView from "./ReleasesListView";
 import WalineComment from "./WalineComment";
@@ -396,13 +393,14 @@ export default function MainContent({}: MainContentProps = {}) {
     }
     
     try {
+      const { github } = servicesConfig;
       // 在本批次开始前，随机选择一个资源 URL，保证本批次内一致
       const selectedLatencyUrl = mode === 'latency'
-        ? LATENCY_TEST_IMAGE_URLS[Math.floor(Math.random() * LATENCY_TEST_IMAGE_URLS.length)]
+        ? github.latencyTestImages[Math.floor(Math.random() * github.latencyTestImages.length)]
         : '';
       
       const selectedSpeedUrl = mode === 'speed'
-        ? SPEED_TEST_FILE_URLS[Math.floor(Math.random() * SPEED_TEST_FILE_URLS.length)]
+        ? github.speedTestFiles[Math.floor(Math.random() * github.speedTestFiles.length)]
         : '';
 
       const updatedNodes = [...nodeList];
@@ -606,7 +604,7 @@ export default function MainContent({}: MainContentProps = {}) {
    * 尝试使用所有 API 接口获取 Releases（带回退机制）
    */
   async function fetchGitHubReleasesWithFallback(user: string, repo: string): Promise<Release[]> {
-    const apiBaseUrls = [...GITHUB_API_BASES]; // 复制数组
+    const apiBaseUrls = [...servicesConfig.github.apiBases]; // 复制数组
     const errors: { url: string; error: string; isRetryable: boolean }[] = [];
     
     // 打乱顺序，实现随机分配
@@ -674,7 +672,7 @@ export default function MainContent({}: MainContentProps = {}) {
     const hasNetworkError = errors.some(e => e.error.includes('网络错误') || e.error.includes('Failed to fetch'));
     const hasRateLimit = errors.some(e => e.error.includes('频率限制'));
     
-    if (hasRateLimit && errors.length === GITHUB_API_BASES.length) {
+    if (hasRateLimit && errors.length === servicesConfig.github.apiBases.length) {
       throw new Error('所有 GitHub API 接口都触发频率限制，请稍后再试');
     } else if (hasNetworkError) {
       throw new Error('所有 GitHub API 接口都无法访问，请检查网络连接');
@@ -1294,7 +1292,7 @@ export default function MainContent({}: MainContentProps = {}) {
           {!isLoading && (
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
               <WalineComment 
-                serverURL={WALINE_SERVER_URL}
+                serverURL={servicesConfig.waline.serverUrl}
                 path="/github"
                 lang="zh-CN"
               />

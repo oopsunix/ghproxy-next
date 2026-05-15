@@ -6,6 +6,7 @@
 import { useEffect, useRef } from "react";
 import { init } from "@waline/client";
 import "@waline/client/style";
+import { servicesConfig } from "@/config/services";
 
 // ============================================================
 // 类型定义
