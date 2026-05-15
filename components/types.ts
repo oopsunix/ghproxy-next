@@ -5,7 +5,6 @@
 export interface DomainNode {
   value: string;
   label: string;
-  host: string;
   latency: string;
   speed: string;
 }

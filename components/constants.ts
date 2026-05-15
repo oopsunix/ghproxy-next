@@ -2,9 +2,6 @@
 // 常量定义
 // ============================================================
 
-// API 配置
-export const PROXY_API_URL = 'https://api.akams.cn/github';
-export const API_FETCH_INTERVAL = 120 * 60 * 1000; // API节点获取间隔120分钟
 // GitHub API 代理接口列表（随机分配避免频率限制）
 export const GITHUB_API_BASES = [
   'https://api.github.com',

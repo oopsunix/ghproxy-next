@@ -6,8 +6,8 @@
 import { ChevronDown, AlertCircle, Check, Gauge, Copy, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { DomainNode, Release } from './types';
+import { PROXY_NODES } from './nodes';
 import {
-  PROXY_API_URL,
   GITHUB_API_BASES,
   COPY_FEEDBACK_DURATION,
   MAX_DROPDOWN_HEIGHT,
@@ -18,7 +18,6 @@ import {
   LATENCY_SOURCE_CLIENT,
   LATENCY_CACHE_DURATION,
   LATENCY_AUTO_REFRESH_INTERVAL,
-  API_FETCH_INTERVAL,
   CLICK_RATE_LIMIT,
   CLICK_RATE_WINDOW,
   WALINE_SERVER_URL
@@ -115,7 +114,6 @@ export default function MainContent({}: MainContentProps = {}) {
     if (!match) {
       return { backgroundColor: 'transparent', color: 'inherit' };
     }
-// ... rest of the function (no changes needed for the color logic)
     
     const latency = parseFloat(match[1]);
     
@@ -142,14 +140,26 @@ export default function MainContent({}: MainContentProps = {}) {
    */
   function getLabelStyle(label: string): string {
     switch(label) {
-      case '默认节点':
+      case 'default':
         return 'text-blue-400 dark:text-blue-300';
-      case '公益贡献':
+      case 'contribute':
         return 'text-violet-400 dark:text-violet-300';
-      case '搜索引擎':
+      case 'search':
         return 'text-gray-700 dark:text-gray-300';
       default:
         return 'text-gray-700 dark:text-gray-300';
+    }
+  }
+
+  /**
+   * 获取标签显示文本
+   */
+  function getLabelText(label: string): string {
+    switch(label) {
+      case 'default': return '默认';
+      case 'contribute': return '贡献';
+      case 'search': return '测绘';
+      default: return label || '未知';
     }
   }
 
@@ -157,13 +167,12 @@ export default function MainContent({}: MainContentProps = {}) {
   // 缓存管理相关
   // ============================================================
 
-  const API_CACHE_KEY = 'node_api_cache';
   const SELECTED_NODE_KEY = 'node_selected_node';
   const LATENCY_CACHE_KEY = 'node_latency_cache';
   const SPEED_CACHE_KEY = 'node_speed_cache';
 
   // 获取延迟缓存
-  function getLatencyCache(): { [host: string]: { value: string, timestamp: number } } {
+  function getLatencyCache(): { [value: string]: { value: string, timestamp: number } } {
     try {
       const cached = localStorage.getItem(LATENCY_CACHE_KEY);
       return cached ? JSON.parse(cached) : {};
@@ -173,14 +182,14 @@ export default function MainContent({}: MainContentProps = {}) {
   }
 
   // 保存延迟缓存
-  function saveLatencyCache(host: string, latency: string) {
+  function saveLatencyCache(value: string, latency: string) {
     const cache = getLatencyCache();
-    cache[host] = { value: latency, timestamp: Date.now() };
+    cache[value] = { value: latency, timestamp: Date.now() };
     localStorage.setItem(LATENCY_CACHE_KEY, JSON.stringify(cache));
   }
 
   // 获取速度缓存
-  function getSpeedCache(): { [host: string]: string } {
+  function getSpeedCache(): { [value: string]: string } {
     try {
       const cached = localStorage.getItem(SPEED_CACHE_KEY);
       return cached ? JSON.parse(cached) : {};
@@ -190,13 +199,13 @@ export default function MainContent({}: MainContentProps = {}) {
   }
 
   // 保存速度缓存
-  function saveSpeedCache(host: string, speed: string) {
+  function saveSpeedCache(value: string, speed: string) {
     const cache = getSpeedCache();
-    cache[host] = speed;
+    cache[value] = speed;
     localStorage.setItem(SPEED_CACHE_KEY, JSON.stringify(cache));
   }
 
-  // 从 API 获取节点列表
+  // 从本地配置获取节点列表
   async function fetchDomains(): Promise<DomainNode[]> {
     try {
       setIsLoadingDomains(true);
@@ -207,11 +216,11 @@ export default function MainContent({}: MainContentProps = {}) {
 
       // 辅助函数：应用缓存数据到节点
       const applyCache = (node: any): DomainNode => {
-        const cachedLat = latencyCache[node.host];
-        const cachedSpeed = speedCache[node.host];
+        const cachedLat = latencyCache[node.value];
+        const cachedSpeed = speedCache[node.value];
         
         let latency = '-';
-        // 如果延迟缓存未过期（60秒），则使用缓存
+        // 如果延迟缓存未过期（5分钟），则使用缓存
         if (cachedLat && now - cachedLat.timestamp < LATENCY_CACHE_DURATION) {
           latency = cachedLat.value;
         }
@@ -223,86 +232,18 @@ export default function MainContent({}: MainContentProps = {}) {
         };
       };
       
-      // 检查 API 获取缓存（120分钟）
-      const apiCache = localStorage.getItem(API_CACHE_KEY);
+      // 使用本地定义的节点列表
+      const domainList: DomainNode[] = PROXY_NODES.map(applyCache);
       
-      if (apiCache) {
-        try {
-          const { timestamp, domains: cachedDomains } = JSON.parse(apiCache);
-          
-          // 如果 API 缓存未过期，使用缓存数据
-          if (now - timestamp < API_FETCH_INTERVAL) {
-            console.log('使用 API 缓存数据');
-            
-            // 应用延迟和速度缓存
-            const initialNodes = cachedDomains.map(applyCache);
-            
-            const sortedList = sortDomains(initialNodes);
-            setDomains(sortedList);
-            setIsLoadingDomains(false);
-            return sortedList;
-          }
-        } catch (e) {
-          console.error('解析 API 缓存失败:', e);
-        }
-      }
-      
-      // 获取新数据
-      const response = await fetch(PROXY_API_URL);
-      
-      if (!response.ok) {
-        throw new Error(`API 请求失败: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      
-      if (result.code === 200 && Array.isArray(result.data)) {
-        // 转换 API 数据，只取节点信息，延迟和速度从缓存获取或初始化
-        const domainList: DomainNode[] = result.data.map((item: any) => {
-          const url = new URL(item.url);
-          const host = url.host;
-          let label = item.tag;
-          
-          if (host === 'gh.llkk.cc') {
-            label = '默认节点';
-          } else if (item.tag === 'donate') {
-            label = '公益贡献';
-          } else if (item.tag === 'search') {
-            label = '搜索引擎';
-          }
-          
-          return applyCache({
-            value: host,
-            label: label,
-            host: host
-          });
-        });
-        
-        // 缓存 API 节点基础数据 (不带延迟和速度，因为它们有独立缓存)
-        const baseDomains = domainList.map(node => ({
-          value: node.value,
-          label: node.label,
-          host: node.host
-        }));
-
-        localStorage.setItem(API_CACHE_KEY, JSON.stringify({
-          timestamp: Date.now(),
-          domains: baseDomains,
-        }));
-        
-        const sortedList = sortDomains(domainList);
-        setDomains(sortedList);
-        setIsLoadingDomains(false);
-        return sortedList;
-      } else {
-        throw new Error('API 返回数据格式错误');
-      }
+      const sortedList = sortDomains(domainList);
+      setDomains(sortedList);
+      setIsLoadingDomains(false);
+      return sortedList;
     } catch (error) {
-      console.error('获取节点列表失败:', error);
+      console.error('初始化节点列表失败:', error);
       const fallbackDomains: DomainNode[] = [{
         value: "gh.llkk.cc",
-        label: "默认节点",
-        host: "gh.llkk.cc",
+        label: "default",
         latency: "-",
         speed: "-",
       }];
@@ -422,10 +363,10 @@ export default function MainContent({}: MainContentProps = {}) {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
-        console.warn(`测速超时已中断 ${node.host}`);
+        console.warn(`测速超时已中断 ${node.value}`);
         return 'timeout';
       }
-      console.error(`测速失败 ${node.host}:`, error);
+      console.error(`测速失败 ${node.value}:`, error);
       return '-';
     }
   }
@@ -477,7 +418,7 @@ export default function MainContent({}: MainContentProps = {}) {
             latency: latencyStr,
           };
           // 保存缓存
-          saveLatencyCache(node.host, latencyStr);
+          saveLatencyCache(node.value, latencyStr);
           // 立即更新 UI 展示排序
           setDomains(sortDomains([...updatedNodes]));
         } else {
@@ -488,7 +429,7 @@ export default function MainContent({}: MainContentProps = {}) {
             speed: speedStr,
           };
           // 保存缓存
-          saveSpeedCache(node.host, speedStr);
+          saveSpeedCache(node.value, speedStr);
           // 测速完成后也更新 UI (此时不影响排序，因为 sortDomains 只看延迟)
           setDomains([...updatedNodes]);
         }
@@ -1062,9 +1003,16 @@ export default function MainContent({}: MainContentProps = {}) {
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 w-full">
-                      {/* Host - 55% */}
-                      <span className="text-gray-700 dark:text-gray-300 truncate" style={{ width: '55%' }}>
-                        {getSelectedNode().host}
+                      {/* 标签 - 10% */}
+                      <span
+                        className={`font-medium shrink-0 ${getLabelStyle(getSelectedNode().label)}`}
+                        style={{ width: '10%', minWidth: '50px' }}
+                      >
+                        [{getLabelText(getSelectedNode().label)}]
+                      </span>
+                      {/* Host - 60% */}
+                      <span className="text-gray-700 dark:text-gray-300 truncate" style={{ width: '60%' }}>
+                        {getSelectedNode().value}
                       </span>
                       {/* 延迟 - 15% */}
                       <span 
@@ -1122,16 +1070,16 @@ export default function MainContent({}: MainContentProps = {}) {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        {/* 标签 - 20% */}
+                        {/* 标签 - 10% */}
                         <span
                           className={`font-medium shrink-0 ${getLabelStyle(domain.label)}`}
-                          style={{ width: '15%', minWidth: '80px' }}
+                          style={{ width: '10%', minWidth: '50px' }}
                         >
-                          [{domain.label}]
+                          [{getLabelText(domain.label)}]
                         </span>
-                        {/* Host - 55% */}
-                        <span className="text-gray-700 dark:text-gray-300 truncate" style={{ width: '55%' }}>
-                          {domain.host}
+                        {/* Host - 60% */}
+                        <span className="text-gray-700 dark:text-gray-300 truncate" style={{ width: '60%' }}>
+                          {domain.value}
                         </span>
                         {/* 延迟 - 15% */}
                         <span 
