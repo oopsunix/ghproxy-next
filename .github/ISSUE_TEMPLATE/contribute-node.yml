@@ -1,0 +1,33 @@
+name: 📦 贡献节点 (Contribute Node)
+description: 提交一个新的 GitHub 加速节点。
+title: "[node]: "
+labels: ["contribute-node"]
+body:
+  - type: checkboxes
+    attributes:
+      label: 贡献前提 (Prerequisites)
+      options:
+        - label: 我清楚在公开贡献镜像源后，可能会因高频访问导致存在服务中断或账单风险。
+          required: true
+  - type: dropdown
+    attributes:
+      label: 节点来源类型 (Node Source Type)
+      description: "请选择节点的属性（contribute: 自己维护/公开分享的贡献节点；search: 搜索引擎发现的公网公开节点）。"
+      options:
+        - contribute
+        - search
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: 节点链接或域名 (Link or Domain)
+      description: 请提供节点的完整 URL 或域名。
+      placeholder: 例如：https://gh.example.com 或 gh.example.com
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 备注信息 (Additional Information)
+      description: 可选，关于该节点的其他说明。
+    validations:
+      required: false

@@ -1,0 +1,129 @@
+name: Validate and Add Acceleration Node
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  validate-and-add-mirror:
+    runs-on: ubuntu-latest
+    if: ${{ contains(github.event.issue.labels.*.name, 'contribute-node') }}
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract domain and type
+        id: extract
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Robust extraction using environment variable to prevent injection
+          TYPE=$(echo "$ISSUE_BODY" | awk '/### 节点来源类型 \(Node Source Type\)/ { getline; getline; print }' | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          INPUT=$(echo "$ISSUE_BODY" | awk '/### 节点链接或域名 \(Link or Domain\)/ { getline; getline; print }' | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          
+          if [[ -z "$INPUT" || -z "$TYPE" ]]; then
+            echo "Error: Could not extract input or type."
+            exit 1
+          fi
+
+          # Extract hostname using python
+          DOMAIN=$(INPUT_VAL="$INPUT" python3 -c "from urllib.parse import urlparse; import os; i=os.environ['INPUT_VAL']; p=urlparse(i if '://' in i else 'https://'+i); print(p.netloc or p.path.split('/')[0])")
+
+          if [[ -z "$DOMAIN" || "$DOMAIN" == "None" ]]; then
+            echo "Error: Invalid domain extracted."
+            exit 1
+          fi
+
+          # Set outputs for subsequent steps
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "node_type=$TYPE" >> $GITHUB_OUTPUT
+          echo "Extracted Domain: $DOMAIN, Type: $TYPE"
+
+      - name: Validate Domain Connectivity
+        id: validate
+        run: |
+          DOMAIN="${{ steps.extract.outputs.domain }}"
+          echo "Validating connectivity for $DOMAIN..."
+          if ! curl -Is --connect-timeout 10 --max-time 15 "https://$DOMAIN" > /dev/null; then
+            echo "Error: Domain $DOMAIN is unreachable via HTTPS."
+            exit 1
+          fi
+
+      - name: Update nodes.ts
+        id: update-file
+        shell: node {0}
+        env:
+          DOMAIN: ${{ steps.extract.outputs.domain }}
+          NODE_TYPE: ${{ steps.extract.outputs.node_type }}
+        run: |
+          const fs = require('fs');
+          const path = 'components/nodes.ts';
+          const domain = process.env.DOMAIN;
+          const label = process.env.NODE_TYPE;
+          
+          let content = fs.readFileSync(path, 'utf8');
+          if (content.includes(`value: "${domain}"`)) {
+            console.log(`Domain ${domain} already exists. Skipping.`);
+            process.exit(0);
+          }
+
+          const newNode = `  { label: "${label}", value: "${domain}" },`;
+          const lines = content.split('\n');
+          let insertIndex = -1;
+          for (let i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].trim() === '];') {
+              insertIndex = i;
+              break;
+            }
+          }
+
+          if (insertIndex === -1) process.exit(1);
+          lines.splice(insertIndex, 0, newNode);
+          fs.writeFileSync(path, lines.join('\n'));
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          if git diff --quiet components/nodes.ts; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          
+          git add components/nodes.ts
+          git commit -m "feat: add new acceleration node ${{ steps.extract.outputs.domain }} via issue #${{ github.event.issue.number }}"
+          git push
+
+      - name: Success Comment and Close
+        if: success()
+        uses: peter-evans/close-issue@v3
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          comment: |
+            ### 🎉 提交成功 (Submission Successful)
+
+            感谢你贡献加速节点！
+            域名 `${{ steps.extract.outputs.domain }}` 已通过验证并自动添加到节点列表中。
+
+            节点配置已更新，网站重新部署后即可生效。
+            再次感谢对开源社区的贡献！
+
+            ---
+            *This issue was closed automatically by GitHub Actions.*
+
+      - name: Failure Comment
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### ❌ 验证失败 (Validation Failed)\n\n很抱歉，自动验证未能通过。请检查以下几点：\n1. 提供的域名/链接是否正确且可访问。\n2. 节点必须支持 HTTPS。\n3. 该域名可能已存在于列表中。\n\n如果有任何疑问，请通过其他方式联系维护者。`
+            })
