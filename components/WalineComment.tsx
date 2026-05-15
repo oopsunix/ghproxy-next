@@ -55,12 +55,12 @@ export default function WalineComment({
       pageSize: 10, // 评论列表分页，每页条数
       reaction: [
         // 为文章增加表情互动功能
-        "https://npm.elemecdn.com/@waline/emojis@1.1.0/bilibili/bb_heart_eyes.png",
-        "https://npm.elemecdn.com/@waline/emojis@1.1.0/bilibili/bb_thumbsup.png",
-        "https://npm.elemecdn.com/@waline/emojis@1.1.0/bilibili/bb_zhoumei.png",
-        "https://npm.elemecdn.com/@waline/emojis@1.1.0/bilibili/bb_grievance.png",
-        "https://npm.elemecdn.com/@waline/emojis@1.1.0/bilibili/bb_dizzy_face.png",
-        "https://npm.elemecdn.com/@waline/emojis@1.1.0/bilibili/bb_slap.png",
+        "https://cdn.akams.cn/jsd/npm/@waline/emojis@1.1.0/bilibili/bb_heart_eyes.png",
+        "https://cdn.akams.cn/jsd/npm/@waline/emojis@1.1.0/bilibili/bb_thumbsup.png",
+        "https://cdn.akams.cn/jsd/npm/@waline/emojis@1.1.0/bilibili/bb_zhoumei.png",
+        "https://cdn.akams.cn/jsd/npm/@waline/emojis@1.1.0/bilibili/bb_grievance.png",
+        "https://cdn.akams.cn/jsd/npm/@waline/emojis@1.1.0/bilibili/bb_dizzy_face.png",
+        "https://cdn.akams.cn/jsd/npm/@waline/emojis@1.1.0/bilibili/bb_slap.png",
       ],
       locale: {
         placeholder: "请留言。(填写邮箱可在被回复时收到邮件提醒)",
@@ -75,14 +75,14 @@ export default function WalineComment({
         comment: "留言",
       },
       emoji: [
-        'https://jsd.akams.cn/gh/norevi/waline-blobcatemojis@1.0/blobs',
-        "https://jsd.akams.cn/gh/walinejs/emojis@1.4.0/bmoji",
-        "https://jsd.akams.cn/gh/walinejs/emojis@1.4.0/bilibili",
-        "https://jsd.akams.cn/gh/walinejs/emojis@1.4.0/weibo",
-        'https://jsd.akams.cn/gh/walinejs/emojis@1.4.0/qq',
-        'https://jsd.akams.cn/gh/walinejs/emojis@1.4.0/tieba',
-        'https://jsd.akams.cn/gh/walinejs/emojis@1.4.0/alus',
-        'https://jsd.akams.cn/gh/walinejs/emojis@1.4.0/hoyoverse-hi3'
+        'https://cdn.akams.cn/jsd/gh/norevi/waline-blobcatemojis@1.0/blobs',
+        "https://cdn.akams.cn/jsd/gh/walinejs/emojis@1.4.0/bmoji",
+        "https://cdn.akams.cn/jsd/gh/walinejs/emojis@1.4.0/bilibili",
+        "https://cdn.akams.cn/jsd/gh/walinejs/emojis@1.4.0/weibo",
+        'https://cdn.akams.cn/jsd/gh/walinejs/emojis@1.4.0/qq',
+        'https://cdn.akams.cn/jsd/gh/walinejs/emojis@1.4.0/tieba',
+        'https://cdn.akams.cn/jsd/gh/walinejs/emojis@1.4.0/alus',
+        'https://cdn.akams.cn/jsd/gh/walinejs/emojis@1.4.0/hoyoverse-hi3'
       ],
       imageUploader: false, // 禁用图片上传
       search: false, // 禁用gif表情包搜索
